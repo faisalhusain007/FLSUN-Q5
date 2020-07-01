@@ -36,17 +36,17 @@
 //
 // Release PB4 (Y_ENABLE_PIN) from JTAG NRST role
 //
-
 #define DISABLE_DEBUG
 
 //
 // EEPROM
 //
 //#define FLASH_EEPROM_EMULATION
-#define SDCARD_EEPROM_EMULATION
-
-//#define E2END 0xFFF                              // 4Kb (24lc32)
-//#define I2C_EEPROM                                // EEPROM on I2C-0
+//#define SDCARD_EEPROM_EMULATION
+#define FLASH_EEPROM_EMULATION
+#define EEPROM_PAGE_SIZE	(uint16)0x800 // 2048
+#define EEPROM_START_ADDRESS	((uint32)(0x8000000 + 512 * 1024 - 2 * EEPROM_PAGE_SIZE))
+#define E2END (EEPROM_PAGE_SIZE - 1)
 
 //
 // Note: MKS Robin board is using SPI2 interface.
@@ -61,6 +61,10 @@
 #define Y_STOP_PIN                          PA12
 #define Z_MIN_PIN                           PA11
 #define Z_MAX_PIN                           PC4
+
+#ifndef FIL_RUNOUT_PIN
+  #define FIL_RUNOUT_PIN                    PA4   // MT_DET
+#endif
 
 //
 // Steppers
@@ -81,11 +85,108 @@
 #define E0_STEP_PIN                         PD6
 #define E0_DIR_PIN                          PD3
 
-#define E1_ENABLE_PIN                       PA3
-#define E1_STEP_PIN                         PA6
-#define E1_DIR_PIN                          PA1
+//#define E1_ENABLE_PIN                     PA3  // USED BY UART X
+//#define E1_STEP_PIN                       PA6  // USED BY UART Y
+//#define E1_DIR_PIN                        PA1  // USED BY UART Z
 
 //
+//TMC UART RX / TX Pins Hardware/Software Serial
+//
+#if HAS_TMC220x
+  /**
+  * TMC2209 stepper drivers
+  * 
+  * Hardware serial communication ports.
+  * If undefined software serial is used according to the pins below
+  * 
+  * Four TMC2209 drivers can use the same HW/SW serial port with hardware configured addresses.
+  * Set the address using jumpers on pins MS1 and MS2.
+  * Address | MS1  | MS2
+  *       0 | LOW  | LOW
+  *       1 | HIGH | LOW
+  *       2 | LOW  | HIGH
+  *       3 | HIGH | HIGH
+  */
+
+  // Set Hardware Serial UART only für TCM 2209
+  //#define HARDWARE_SERIAL
+    //https://www.reddit.com/r/3Dprinting/comments/gthxb6/mks_robin_nano_v12_diagram_for_5x_tmc2209_v30/
+    //https://www.youtube.com/watch?v=dtXiUXb5DvQ
+    //PDN Cable, 1k Resistor required on TX,  Connect to PDN on Stepper
+    //wire Diag to min endstop, 
+    
+
+  // Set Software Serial UART for TMC 2208 / TMC 2209
+  #define SOFTWARE_SERIAL
+  //only for TMC2209
+  // use https://github.com/FYSETC/SoftwareSerialM  
+  // https://www.gitmemory.com/issue/MarlinFirmware/Marlin/15873/552647130
+  // Bind cables, no resistor, connect to PDN 
+  //wire Diag to min endstop,
+
+
+
+  #if ENABLED(HARDWARE_SERIAL)
+    //#define X_HARDWARE_SERIAL  Serial1
+    //#define Y_HARDWARE_SERIAL  Serial1
+    //#define Z_HARDWARE_SERIAL  Serial1
+    //#define E0_HARDWARE_SERIAL Serial1
+
+    //Set *_SERIAL_TX_PIN and *_SERIAL_RX_PIN to match for all drivers on the same PIN to the same Slave Address.
+    // | = add jumper
+    // : = remove jumper
+    // M1 is always closest to 12/24v
+    // <- board power M1 M2 M3 -> endstops
+    // See: https://github.com/le3tspeak/Marlin-2.0.X-MKS-Robin-Nano/blob/MKS-Robin-Nano/docs/TMC2209HWSERIAL.jpg
+    #define  X_SLAVE_ADDRESS 0    // |  |  :
+    #define  Y_SLAVE_ADDRESS 2    // :  |  :
+    #define  Z_SLAVE_ADDRESS 1    // |  :  :
+    #define E0_SLAVE_ADDRESS 3    // :  :  :
+
+    #define X_SERIAL_TX_PIN                   PA9
+    #define X_SERIAL_RX_PIN                   PA9
+    
+    #define Y_SERIAL_TX_PIN                   PA9
+    #define Y_SERIAL_RX_PIN                   PA9
+    
+    #define Z_SERIAL_TX_PIN                   PA9
+    #define Z_SERIAL_RX_PIN                   PA9
+
+    #define E0_SERIAL_TX_PIN                  PE5
+    #define E0_SERIAL_RX_PIN                  PE5
+
+    #elif ENABLED (SOFTWARE_SERIAL)
+    //#define X_HARDWARE_SERIAL  Serial1
+    //#define Y_HARDWARE_SERIAL  Serial1
+    //#define Z_HARDWARE_SERIAL  Serial1
+    //#define E0_HARDWARE_SERIAL Serial1
+
+    //Set *_SERIAL_TX_PIN and *_SERIAL_RX_PIN to match for all drivers on the same PIN to the same Slave Address.
+    #define  X_SLAVE_ADDRESS 0
+    #define  Y_SLAVE_ADDRESS 0
+    #define  Z_SLAVE_ADDRESS 0
+    #define E0_SLAVE_ADDRESS 0
+
+    #define X_SERIAL_TX_PIN                   PA3
+    #define X_SERIAL_RX_PIN                   PA3
+    
+    #define Y_SERIAL_TX_PIN                   PA6
+    #define Y_SERIAL_RX_PIN                   PA6
+    
+    #define Z_SERIAL_TX_PIN                   PA1
+    #define Z_SERIAL_RX_PIN                   PA1
+
+    #define E0_SERIAL_TX_PIN                  PA8
+    #define E0_SERIAL_RX_PIN                  PA8
+
+    // Reduce baud rate to improve software serial reliability
+    #define TMC_BAUD_RATE 19200
+  #endif
+#endif
+
+
+
+
 // Temperature Sensors
 //
 #define TEMP_0_PIN                          PC1   // TH1
@@ -119,16 +220,12 @@
 //#define KILL_PIN 						                PA2     // Enable MKSPWC support ROBIN NANO v1.2 ONLY
 //#define KILL_PIN_INVERTING 				          true     // Enable MKSPWC support ROBIN NANO v1.2 ONLY
 
-#define SERVO0_PIN                          PA8   // Enable BLTOUCH support ROBIN NANO v1.2 ONLY
+//#define SERVO0_PIN                          PA8   // Enable BLTOUCH support ROBIN NANO v1.2 ONLY
 
 //#define LED_PIN                             PB2
 
 #define MT_DET_1_PIN				PA4
-#define MT_DET_2_PIN     				PE6 
 #define MT_DET_PIN_INVERTING		false
-
-#define WIFI_IO0_PIN       			PC13
-
 
 //
 // SD Card
@@ -153,7 +250,53 @@
 
 #if ENABLED(SPI_GRAPHICAL_TFT)
 
-  #define SPI_TFT_CS_PIN			PD11
+  #if HAS_SPI_LCD
+
+    #define BEEPER_PIN       PC5
+    #define BTN_ENC          PE13
+    #define LCD_PINS_ENABLE  PD13
+    #define LCD_PINS_RS      PC6
+    #define BTN_EN1          PE8
+    #define BTN_EN2          PE11
+    #define LCD_BACKLIGHT_PIN -1
+
+    // MKS MINI12864 and MKS LCD12864B; If using MKS LCD12864A (Need to remove RPK2 resistor)
+    #if ENABLED(MKS_MINI_12864)
+      #define LCD_BACKLIGHT_PIN -1
+      #define LCD_RESET_PIN  -1
+      #define DOGLCD_A0      PD11
+      #define DOGLCD_CS      PE15
+      #define DOGLCD_SCK     PA5
+      #define DOGLCD_MOSI    PA7
+
+      // Required for MKS_MINI_12864 with this board
+      #define MKS_LCD12864B
+      #undef SHOW_BOOTSCREEN
+
+    #else // !MKS_MINI_12864
+
+      #define LCD_PINS_D4    PE14
+      #if ENABLED(ULTIPANEL)
+        #define LCD_PINS_D5  PE15
+        #define LCD_PINS_D6  PD11
+        #define LCD_PINS_D7  PD10
+      #endif
+
+      #ifndef ST7920_DELAY_1
+        #define ST7920_DELAY_1 DELAY_NS(125)
+      #endif
+      #ifndef ST7920_DELAY_2
+        #define ST7920_DELAY_2 DELAY_NS(125)
+      #endif
+      #ifndef ST7920_DELAY_3
+        #define ST7920_DELAY_3 DELAY_NS(125)
+      #endif
+
+    #endif // !MKS_MINI_12864
+
+  #else  
+
+	#define SPI_TFT_CS_PIN			PD11
 	#define SPI_TFT_SCK_PIN			PA5
 	#define SPI_TFT_MISO_PIN		PA6
 	#define SPI_TFT_MOSI_PIN		PA7
@@ -171,6 +314,8 @@
   #define BTN_EN2          PE11
   #define BEEPER_PIN       PC5
   #define BTN_ENC          PE13
+
+  #endif//HAS_SPI_LCD
 
 #else
   #if ENABLED(TFT_LITTLE_VGL_UI)
@@ -213,53 +358,6 @@
     #define TOUCH_MOSI_PIN                  PB15  // SPI2_MOSI
   #endif
 #endif
-
-#if HAS_SPI_LCD
-
-#define BEEPER_PIN       PC5
-#define BTN_ENC          PE13
-#define LCD_PINS_ENABLE  PD13
-#define LCD_PINS_RS      PC6
-#define BTN_EN1          PE8
-#define BTN_EN2          PE11
-#define LCD_BACKLIGHT_PIN -1
-
-// MKS MINI12864 and MKS LCD12864B; If using MKS LCD12864A (Need to remove RPK2 resistor)
-#if ENABLED(MKS_MINI_12864)
-  #define LCD_BACKLIGHT_PIN -1
-  #define LCD_RESET_PIN  -1
-  #define DOGLCD_A0      PD11
-  #define DOGLCD_CS      PE15
-  #define DOGLCD_SCK     PA5
-  #define DOGLCD_MOSI    PA7
-
-  // Required for MKS_MINI_12864 with this board
-  #define MKS_LCD12864B
-  #undef SHOW_BOOTSCREEN
-
-#else // !MKS_MINI_12864
-
-  #define LCD_PINS_D4    PE14
-  #if ENABLED(ULTIPANEL)
-    #define LCD_PINS_D5  PE15
-    #define LCD_PINS_D6  PD11
-    #define LCD_PINS_D7  PD10
-  #endif
-
-  #ifndef ST7920_DELAY_1
-    #define ST7920_DELAY_1 DELAY_NS(125)
-  #endif
-  #ifndef ST7920_DELAY_2
-    #define ST7920_DELAY_2 DELAY_NS(125)
-  #endif
-  #ifndef ST7920_DELAY_3
-    #define ST7920_DELAY_3 DELAY_NS(125)
-  #endif
-
-#endif // !MKS_MINI_12864
-
-#endif//HAS_SPI_LCD
-
 
 #define SPI_FLASH
 #if ENABLED(SPI_FLASH)
